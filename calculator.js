@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 
 // --- Helper Functions ---
+// Formats a number into Taiwanese currency format (e.g., NT$120,000)
 const formatCurrency = (value) => {
   if (isNaN(value)) return 'N/A';
   return new Intl.NumberFormat('zh-TW', {
@@ -11,25 +12,26 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
+// Initial configuration for bonus tiers. Monthly and Quarterly thresholds and rates.
 const INITIAL_TIER_CONFIG = {
   monthly: {
     thresholds: [120000, 200000, 400000],
     rates: [0.03, 0.05, 0.10],
-    labels: ["12萬以下", "12萬-20萬", "20萬-40萬", "40萬以上"],
   },
   quarterly: {
     thresholds: [360000, 600000, 1200000],
     rates: [0.03, 0.05, 0.10],
-    labels: ["36萬以下", "36萬-60萬", "60萬-120萬", "120萬以上"],
   },
 };
 
+// Calculates the bonus based on a progressive (tiered) system.
 const calculateProgressiveBonus = (performance, type = 'monthly', config) => {
   const { thresholds, rates } = config[type];
   let bonus = 0;
   let remainingPerf = performance;
   let lowerBound = 0;
 
+  // Loop through each tier
   for (let i = 0; i < thresholds.length; i++) {
     const upperBound = thresholds[i];
     const rate = rates[i];
@@ -44,6 +46,7 @@ const calculateProgressiveBonus = (performance, type = 'monthly', config) => {
     lowerBound = upperBound;
   }
 
+  // Calculate for any performance exceeding the highest threshold
   if (remainingPerf > 0) {
     bonus += remainingPerf * rates[rates.length - 1];
   }
@@ -53,13 +56,14 @@ const calculateProgressiveBonus = (performance, type = 'monthly', config) => {
 
 // --- Components ---
 
+// Displays the table for bonus tiers and allows editing the rates.
 const TierTable = ({ type, config, onRateChange }) => {
   const { rates, thresholds } = config;
   const formattedThresholds = thresholds.map(t => (t / 10000) + '萬');
 
   const handleInputChange = (index, value) => {
     const newRate = parseFloat(value);
-    if (!isNaN(newRate)) {
+    if (!isNaN(newRate) && newRate >= 0) {
       onRateChange(type, index, newRate / 100);
     }
   };
@@ -68,9 +72,8 @@ const TierTable = ({ type, config, onRateChange }) => {
     { label: `0 ~ ${formattedThresholds[0]}`, rate: rates[0], index: 0 },
     { label: `${formattedThresholds[0]} ~ ${formattedThresholds[1]}`, rate: rates[1], index: 1 },
     { label: `${formattedThresholds[1]} ~ ${formattedThresholds[2]}`, rate: rates[2], index: 2 },
-    { label: `${formattedThresholds[2]} 以上`, rate: rates[2], index: 2 }, // Note: This rate is tied to the previous one
+    { label: `${formattedThresholds[2]} 以上`, rate: rates[2], index: 2 },
   ];
-
 
   return (
     <div className="bg-gray-50 p-4 rounded-lg border">
@@ -92,7 +95,7 @@ const TierTable = ({ type, config, onRateChange }) => {
                   value={row.rate * 100}
                   onChange={(e) => handleInputChange(row.index, e.target.value)}
                   className="w-20 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5"
-                  // The last row's input is disabled as it shares the rate with the previous tier
+                  // The last row's input is a visual representation and is linked to the previous tier.
                   disabled={i === tierRows.length -1}
                 />
               </td>
@@ -104,11 +107,12 @@ const TierTable = ({ type, config, onRateChange }) => {
   );
 };
 
-
-const CalculatorPanel = ({ initialPerf, isCustom, tierConfig, onPerfChange, forceRecalculate }) => {
+// Main panel for inputting performance data and displaying calculation results.
+const CalculatorPanel = ({ initialPerf, isCustom, tierConfig, onPerfChange }) => {
   const { perf1, perf2, perf3 } = initialPerf;
   const [results, setResults] = useState(null);
 
+  // Function to perform the bonus calculations
   const calculateResults = () => {
       const p1 = Number(perf1) || 0;
       const p2 = Number(perf2) || 0;
@@ -128,15 +132,16 @@ const CalculatorPanel = ({ initialPerf, isCustom, tierConfig, onPerfChange, forc
       });
   };
   
+  // Recalculate whenever performance numbers or the tier configuration changes.
   useEffect(() => {
-    // Recalculate whenever performance numbers, the tier config, or a force recalculation signal is received.
     if(perf1 !== '' || perf2 !== '' || perf3 !== '' || !isCustom) {
         calculateResults();
     } else {
         setResults(null);
     }
-  }, [perf1, perf2, perf3, isCustom, tierConfig, forceRecalculate]);
+  }, [perf1, perf2, perf3, isCustom, tierConfig]);
 
+  // Memoized recommendation based on the calculation results
   const recommendation = useMemo(() => {
     if (!results) return null;
     const diff = results.quarterly.total - results.monthly.total;
@@ -224,11 +229,12 @@ const CalculatorPanel = ({ initialPerf, isCustom, tierConfig, onPerfChange, forc
 };
 
 
+// The main App component that ties everything together.
 export default function App() {
   const [activeTab, setActiveTab] = useState('example1');
   const [tierConfig, setTierConfig] = useState(INITIAL_TIER_CONFIG);
-  const [forceRecalculate, setForceRecalculate] = useState(0);
   
+  // State to hold performance data for all tabs
   const [perfData, setPerfData] = useState({
     example1: { perf1: 150000, perf2: 150000, perf3: 150000 },
     example2: { perf1: 210000, perf2: 210000, perf3: 210000 },
@@ -236,6 +242,7 @@ export default function App() {
     custom: { perf1: '', perf2: '', perf3: '' },
   });
 
+  // Handler for when bonus rates are changed in the TierTable
   const handleRateChange = (type, index, newRate) => {
     setTierConfig(prevConfig => {
       const newRates = [...prevConfig[type].rates];
@@ -250,6 +257,7 @@ export default function App() {
     });
   };
 
+  // Handler for when performance numbers are changed in the custom tab
   const handlePerfChange = (index, value) => {
     setPerfData(prevData => ({
         ...prevData,
@@ -302,7 +310,6 @@ export default function App() {
                             isCustom={activeTab === 'custom'}
                             tierConfig={tierConfig}
                             onPerfChange={handlePerfChange}
-                            forceRecalculate={forceRecalculate}
                         />
                     </div>
                 </div>
